@@ -1,98 +1,85 @@
-import urllib3
-from base64 import encodestring
 import json
 from pprint import pprint
+from methods import HTTPMethod
 
-class HTTPMethod:
-    def __init__(
-        self, 
-        username: str,
-        password: str,
-        ip: str,
-        port: int
-        ):
 
-        self.http = urllib3.PoolManager()
+class Device:
+    """The device object"""
+    def __init__(self, mgmt_ip:str, username:str, password:str):
+        self.ip = mgmt_ip
         self.username = username
         self.password = password
-        self.ip = ip
-        self.port = port
-        self.base64_auth = encodestring( ('%s:%s' % (self.username, self.password)).encode()).decode().replace('\n', '')
 
-    def request(self, req_data, cookie, timeout=10):
-        response = None
-        json_req = json.dumps(req_data).encode('utf-8')
-        try:
-            response = self.http.request(
-                'POST',
-                'http://%s:%s/ins' % (self.ip, self.port),
-                body=json_req,
-                headers={
-                    'content-type': 'application/json',
-                    'Authorization': 'Basic %s' % self.base64_auth,
-                }
-            )
-        except urllib3.exceptions.MaxRetryError as MaxRetryError:
-            print(MaxRetryError)
-            raise
-        
-        if (response.status != 200 and response.status != 304):
-            print('HTTP %s' % response.status)
-            print(response.data)
-            return
-        
-        print(response.data)
-        return response.data
+        self.http_port = "80"
+        self.ver = "1.0"  #NX-API ver
+        self.response_format = "json"
 
+        self.response = None  #the response message from the device
 
-class NXAPI:
-    def __init__(self):
-        self.username = 'admin'
-        self.password = 'P@ssw0rd'
-        self.ip = '192.168.10.1'
-        self.port = '80'
-        self.timeout = 10
-
-        self.ver = '1.0'
-        self.type = 'cli_show'
-        self.cmd = 'show version'
-        self.output_format = 'json'
-        self.chunk = '0'
-        self.sid = '1'
-        self.cookie = 'no-cookie'
-        
-        self.response = None
-
-    def _req_data(self, command):
-        self.cmd = command
+    def show(self, command):
+        """Call this method to run the show commamd"""
         cli_request = {
             'ins-api': {
-                'chunk': self.chunk,
+                'chunk': "0",
                 'input': command,
-                'output_format': self.output_format,
-                'sid': self.sid,
-                'type': self.type,
+                'output_format': self.response_format,
+                'sid': "1",
+                'type': "cli_show",
                 'version': self.ver
             }
         }
-        return cli_request
+        http = HTTPMethod(self.username, self.password, self.ip, self.http_port)
+        self.response = http.request(cli_request, "no-cookie")
+        return self
 
-    def send_req(self, command="sh ver"):
-        self.response = None
-        http = HTTPMethod(self.username, self.password, self.ip, self.port)
-        self.response = http.request(self._req_data(command=command), self.cookie)
+    def config(self, command):
+        """Call this method to run the configuration commamd"""
+        cli_request = {
+            'ins-api': {
+                'chunk': "0",
+                'input': command,
+                'output_format': self.response_format,
+                'sid': "1",
+                'type': "cli_conf",
+                'version': self.ver
+            }
+        }
+        http = HTTPMethod(self.username, self.password, self.ip, self.http_port)
+        self.response = http.request(cli_request, "no-cookie")
+        return self
 
-    def set_type(self, __type):
-        self.type = __type
+    def res(self):
+        """Returns a raw json response"""
+        return self.response
 
     def dict_res(self):
-
+        """Returns the response in the dictinary format"""
         res_in_dict = json.loads("".join(map(chr, self.response)))
         return res_in_dict
 
+    def print_res(self):
+        """Print the reponse"""
+        if self.response is None:
+            raise ValueError
+        pprint(self.dict_res())
+
+    def get_outputs(self):
+        if self.response is None:
+            raise ValueError
+        outputs = self.dict_res()['ins_api']['outputs']
+        return outputs
+
+    @property
+    def status(self):
+        """HTTP status code"""
+        outputs = self.get_outputs()['output']
+        if type(outputs) is dict:
+            return int(outputs['code'])
+        elif type(outputs) is list:
+            return int(outputs[0]['code'])
+
 
 if __name__ == "__main__":
-    nexus = NXAPI()
-    nexus.send_req()
-    res = nexus.dict_res()
-    pprint(res)
+    nexus = Device("192.168.0.1", "admin", "P@ssw0rd")
+    pprint(nexus.show("sh run").get_outputs())
+    nexus.config("int eth 1/1 ;no sh").status
