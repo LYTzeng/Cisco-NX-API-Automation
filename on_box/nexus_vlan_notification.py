@@ -18,13 +18,10 @@ from base64 import encodestring
 import argparse
 import time
 
-PORT = 8000
-VRF = 'default'
-TIMER = 5
-parser = argparse.ArgumentParser(description='Args')
-parser.add_argument('ip', metavar='N', type=str)
-parser.add_argument('port', metavar='N', type=int)
-parser.add_argument('vrf', metavar='N', type=str)
+parser = argparse.ArgumentParser(description='vlan_notification')
+parser.add_argument('ip', metavar='IP', type=str)
+parser.add_argument('port', metavar='PORT', type=int)
+parser.add_argument('vrf', metavar='VRF', type=str)
 parser.add_argument('-t', '--time', dest='timer', type=int, default=5)
 parser.add_argument('-d', '--debug', dest='debug', type=bool, default=False)
 args = parser.parse_args()
